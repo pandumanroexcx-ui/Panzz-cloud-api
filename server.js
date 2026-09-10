@@ -1,10 +1,10 @@
 const express = require('express');
-const { WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN } = require('./config');
+const { VERIFY_TOKEN } = require('./config');
+const { sendMessage } = require('./lib/send-message');
 
 const app = express();
 app.use(express.json());
 
-// ===== 1. Verifikasi webhook (dipanggil Meta sekali pas setup) =====
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -18,45 +18,41 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// ===== 2. Terima pesan masuk (dipanggil tiap ada chat baru) =====
 app.post('/webhook', async (req, res) => {
-  res.sendStatus(200); // wajib respon cepat ke Meta dulu
+  res.sendStatus(200);
 
   const entry = req.body.entry?.[0];
   const change = entry?.changes?.[0];
   const value = change?.value;
   const message = value?.messages?.[0];
 
-  if (!message) return; // bukan pesan (bisa status update dll), abaikan
+  if (!message) return;
 
-  const from = message.from; // nomor pengirim
+  const from = message.from;
   const text = message.text?.body || '';
+  const body = text.trim();
+  if (!body) return;
 
   console.log(`Pesan masuk dari ${from}: ${text}`);
 
-  // Balas simpel dulu buat testing
-  await sendMessage(from, `Kamu bilang: "${text}"`);
+  const commandName = body.toLowerCase().split(' ')[0];
+  const args = body.split(' ').slice(1);
+
+  const commands = require('./commands');
+  const cmd = commands.get(commandName);
+
+  if (!cmd) {
+    console.log(`Command "${commandName}" ga ketemu, diabaikan`);
+    return;
+  }
+
+  try {
+    await cmd.run({ sendMessage, from, args, message, commands });
+  } catch (err) {
+    console.error(`Error di command "${commandName}":`, err);
+    await sendMessage(from, 'Error pas jalanin command itu.');
+  }
 });
 
-async function sendMessage(to, body) {
-  const url = `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body },
-    }),
-  });
-  const data = await res.json();
-  if (data.error) console.error('Gagal kirim:', data.error);
-  return data;
-}
-
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server jalan di port ${PORT}`));
