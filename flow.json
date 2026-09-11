@@ -1,0 +1,82 @@
+{
+  "version": "7.2",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "PLAY": ["RESULT"],
+    "RESULT": []
+  },
+  "screens": [
+    {
+      "id": "PLAY",
+      "title": "Tic-Tac-Toe",
+      "data": {
+        "board_image": { "type": "string", "__example__": "" },
+        "cell_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "enabled": { "type": "boolean" }
+            }
+          },
+          "__example__": []
+        },
+        "status_text": { "type": "string", "__example__": "Giliranmu (X)" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          { "type": "Image", "src": "${data.board_image}", "width": 300, "height": 300, "scale-type": "contain" },
+          { "type": "TextBody", "text": "${data.status_text}" },
+          {
+            "type": "Form",
+            "name": "play_form",
+            "children": [
+              {
+                "type": "RadioButtonsGroup",
+                "name": "cell",
+                "label": "Pilih kotak",
+                "data-source": "${data.cell_options}",
+                "required": true
+              },
+              {
+                "type": "Footer",
+                "label": "Main",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": { "cell": "${form.cell}" }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "RESULT",
+      "title": "Hasil",
+      "terminal": true,
+      "data": {
+        "board_image": { "type": "string", "__example__": "" },
+        "result_text": { "type": "string", "__example__": "" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          { "type": "Image", "src": "${data.board_image}", "width": 300, "height": 300, "scale-type": "contain" },
+          { "type": "TextHeading", "text": "${data.result_text}" },
+          {
+            "type": "Footer",
+            "label": "Selesai",
+            "on-click-action": {
+              "name": "complete",
+              "payload": { "result": "${data.result_text}" }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

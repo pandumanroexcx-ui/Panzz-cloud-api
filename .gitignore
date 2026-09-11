@@ -1,3 +1,7 @@
 node_modules/
 ngrok-log*.txt
 *.tgz
+private_key.pem
+*.pem
+private_key.pem
+*.pem
