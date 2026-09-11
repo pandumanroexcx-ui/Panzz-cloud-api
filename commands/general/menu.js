@@ -17,7 +17,7 @@ module.exports = {
 
     // 2. Upload gambar ke WhatsApp Media
     const mediaId = await uploadImage(imageBuffer);
-    await sendImage(from, mediaId, '🤖 Selamat datang di PanzzBot!');
+    await sendImage(from, mediaId, 'Welcome to PanzzBot!');
 
     // 3. Kirim List Tombol Kategori
     const rows = categories.map((cat) => ({
