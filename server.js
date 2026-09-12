@@ -1,8 +1,12 @@
 const express = require('express');
 const { VERIFY_TOKEN } = require('./config');
-const { sendMessage, sendImage, sendVideo, sendAudio, sendButtons, sendList } = require('./lib/send-message');
+const {
+  sendMessage, sendImage, sendVideo, sendAudio,
+  sendButtons, sendList, sendSticker,
+} = require('./lib/send-message');
 const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
-const { downloadMedia } = require('./lib/whatsapp-media');
+const { downloadMedia, uploadSticker } = require('./lib/whatsapp-media');
+const { imageToSticker } = require('./lib/sticker');
 const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
 const { setPending, getPending, clearPending } = require('./lib/pending-downloads');
@@ -43,7 +47,6 @@ async function processDownload(from, format) {
   }
   clearPending(from);
   await sendMessage(from, '⏳ Lagi diproses...');
-
   try {
     const result = await download(pendingItem.platform, pendingItem.url, format);
     if (format === 'mp3') {
@@ -67,22 +70,45 @@ app.post('/webhook', async (req, res) => {
   const value = change?.value;
   const message = value?.messages?.[0];
   if (!message) return;
-
   if (isDuplicate(message.id)) return;
 
   const from = message.from;
   const ctx = { sendMessage, sendImage, sendList, from, message };
 
-  // Gambar dikirim -> analisis pake AI
+  // ===== GAMBAR: sticker atau analisis AI =====
   if (message.type === 'image') {
+    const caption = (message.image.caption || '').trim().toLowerCase();
     try {
       const { buffer, mimeType } = await downloadMedia(message.image.id);
-      const caption = message.image.caption || '';
-      const answer = await askGeminiWithImage(caption, buffer, mimeType);
+
+      if (caption === 'sticker' || caption === 'stiker') {
+        const webpBuffer = await imageToSticker(buffer);
+        const mediaId = await uploadSticker(webpBuffer);
+        await sendSticker(from, mediaId);
+      } else {
+        const answer = await askGeminiWithImage(message.image.caption || '', buffer, mimeType);
+        await sendMessage(from, answer);
+      }
+    } catch (e) {
+      console.error('Gagal proses gambar:', e.message);
+      await sendMessage(from, 'Gagal proses gambar itu, coba lagi.');
+    }
+    return;
+  }
+
+  // ===== VOICE NOTE: transkrip pake AI =====
+  if (message.type === 'audio') {
+    try {
+      const { buffer, mimeType } = await downloadMedia(message.audio.id);
+      const answer = await askGeminiWithImage(
+        'Transkrip audio ini ke teks, lalu kasih ringkasan singkat kalau perlu.',
+        buffer,
+        mimeType
+      );
       await sendMessage(from, answer);
     } catch (e) {
-      console.error('Gagal analisis gambar:', e.message);
-      await sendMessage(from, 'Gagal analisis gambar itu, coba lagi.');
+      console.error('Gagal transkrip audio:', e.message);
+      await sendMessage(from, 'Gagal transkrip voice note itu, coba lagi.');
     }
     return;
   }
