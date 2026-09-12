@@ -1,7 +1,8 @@
 const express = require('express');
 const { VERIFY_TOKEN } = require('./config');
 const { sendMessage, sendImage, sendVideo, sendAudio, sendButtons, sendList } = require('./lib/send-message');
-const { askGemini } = require('./lib/ai-client');
+const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
+const { downloadMedia } = require('./lib/whatsapp-media');
 const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
 const { setPending, getPending, clearPending } = require('./lib/pending-downloads');
@@ -41,12 +42,10 @@ async function processDownload(from, format) {
     return;
   }
   clearPending(from);
-
   await sendMessage(from, '⏳ Lagi diproses...');
 
   try {
     const result = await download(pendingItem.platform, pendingItem.url, format);
-
     if (format === 'mp3') {
       if (!result.audioUrl) throw new Error('Ga ada versi audio buat link ini.');
       await sendAudio(from, result.audioUrl);
@@ -69,15 +68,25 @@ app.post('/webhook', async (req, res) => {
   const message = value?.messages?.[0];
   if (!message) return;
 
-  if (isDuplicate(message.id)) {
-    console.log(`Pesan duplikat diabaikan: ${message.id}`);
-    return;
-  }
+  if (isDuplicate(message.id)) return;
 
   const from = message.from;
   const ctx = { sendMessage, sendImage, sendList, from, message };
 
-  // Tombol MP3/MP4 di-tap
+  // Gambar dikirim -> analisis pake AI
+  if (message.type === 'image') {
+    try {
+      const { buffer, mimeType } = await downloadMedia(message.image.id);
+      const caption = message.image.caption || '';
+      const answer = await askGeminiWithImage(caption, buffer, mimeType);
+      await sendMessage(from, answer);
+    } catch (e) {
+      console.error('Gagal analisis gambar:', e.message);
+      await sendMessage(from, 'Gagal analisis gambar itu, coba lagi.');
+    }
+    return;
+  }
+
   if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
     const id = message.interactive.button_reply.id;
     if (id === 'dl_mp3' || id === 'dl_mp4') {
@@ -86,10 +95,8 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
-  // Tombol list kategori di-tap
   if (message.type === 'interactive' && message.interactive?.type === 'list_reply') {
     const id = message.interactive.list_reply.id;
-
     if (id.startsWith('cat:')) {
       const category = id.slice(4);
       const commands = require('./commands');
@@ -119,7 +126,6 @@ app.post('/webhook', async (req, res) => {
 
   console.log(`Pesan masuk dari ${from}: ${text}`);
 
-  // Cek apakah pesan ini mengandung link yang didukung
   const linkInfo = detectLink(body);
   if (linkInfo) {
     setPending(from, linkInfo);
