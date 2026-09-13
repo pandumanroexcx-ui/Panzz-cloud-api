@@ -14,6 +14,8 @@
   "dependencies": {
     "btch-downloader": "^6.3.6",
     "express": "^5.2.1",
-    "sharp": "^0.35.4"
+    "rahad-all-downloader": "^2.1.18",
+    "sharp": "^0.35.4",
+    "ffmpeg-static": "^5.2.0"
   }
 }
