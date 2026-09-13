@@ -1,11 +1,11 @@
 const express = require('express');
 const { VERIFY_TOKEN } = require('./config');
 const {
-  sendMessage, sendImage, sendVideo, sendAudio,
+  sendMessage, sendVideo, sendAudio, sendImage,
   sendButtons, sendList, sendSticker,
 } = require('./lib/send-message');
 const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
-const { downloadMedia, uploadSticker } = require('./lib/whatsapp-media');
+const { downloadMedia, uploadSticker, relayUrlToMediaId } = require('./lib/whatsapp-media');
 const { imageToSticker } = require('./lib/sticker');
 const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
@@ -46,15 +46,23 @@ async function processDownload(from, format) {
     return;
   }
   clearPending(from);
-  await sendMessage(from, '⏳ Lagi diproses...');
+  await sendMessage(from, '⏳ Lagi diproses, sabar ya...');
+
   try {
-    const result = await download(pendingItem.platform, pendingItem.url, format);
+    const result = await download(pendingItem.platform, pendingItem.url);
+
     if (format === 'mp3') {
       if (!result.audioUrl) throw new Error('Ga ada versi audio buat link ini.');
-      await sendAudio(from, result.audioUrl);
+      const mediaId = await relayUrlToMediaId(result.audioUrl, 'audio/mpeg', 'audio.mp3');
+      await sendAudio(from, mediaId, true);
+    } else if (format === 'image') {
+      if (!result.imageUrl) throw new Error('Ga ada versi gambar buat link ini.');
+      const mediaId = await relayUrlToMediaId(result.imageUrl, 'image/jpeg', 'image.jpg');
+      await sendImage(from, mediaId);
     } else {
       if (!result.videoUrl) throw new Error('Ga ada versi video buat link ini.');
-      await sendVideo(from, result.videoUrl);
+      const mediaId = await relayUrlToMediaId(result.videoUrl, 'video/mp4', 'video.mp4');
+      await sendVideo(from, mediaId, '', true);
     }
   } catch (e) {
     console.error('Download error:', e.message);
@@ -75,12 +83,10 @@ app.post('/webhook', async (req, res) => {
   const from = message.from;
   const ctx = { sendMessage, sendImage, sendList, from, message };
 
-  // ===== GAMBAR: sticker atau analisis AI =====
   if (message.type === 'image') {
     const caption = (message.image.caption || '').trim().toLowerCase();
     try {
       const { buffer, mimeType } = await downloadMedia(message.image.id);
-
       if (caption === 'sticker' || caption === 'stiker') {
         const webpBuffer = await imageToSticker(buffer);
         const mediaId = await uploadSticker(webpBuffer);
@@ -96,15 +102,10 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
-  // ===== VOICE NOTE: transkrip pake AI =====
   if (message.type === 'audio') {
     try {
       const { buffer, mimeType } = await downloadMedia(message.audio.id);
-      const answer = await askGeminiWithImage(
-        'Transkrip audio ini ke teks, lalu kasih ringkasan singkat kalau perlu.',
-        buffer,
-        mimeType
-      );
+      const answer = await askGeminiWithImage('Transkrip audio ini ke teks, lalu kasih ringkasan singkat.', buffer, mimeType);
       await sendMessage(from, answer);
     } catch (e) {
       console.error('Gagal transkrip audio:', e.message);
@@ -115,9 +116,9 @@ app.post('/webhook', async (req, res) => {
 
   if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
     const id = message.interactive.button_reply.id;
-    if (id === 'dl_mp3' || id === 'dl_mp4') {
-      await processDownload(from, id === 'dl_mp3' ? 'mp3' : 'mp4');
-    }
+    if (id === 'dl_mp3') await processDownload(from, 'mp3');
+    else if (id === 'dl_mp4') await processDownload(from, 'mp4');
+    else if (id === 'dl_image') await processDownload(from, 'image');
     return;
   }
 
@@ -155,12 +156,21 @@ app.post('/webhook', async (req, res) => {
   const linkInfo = detectLink(body);
   if (linkInfo) {
     setPending(from, linkInfo);
+
+    const buttons = linkInfo.platform === 'instagram'
+      ? [
+          { id: 'dl_mp4', title: 'Video' },
+          { id: 'dl_image', title: 'Gambar' },
+          { id: 'dl_mp3', title: 'Lagu' },
+        ]
+      : [
+          { id: 'dl_mp4', title: 'MP4 (Video)' },
+          { id: 'dl_mp3', title: 'MP3 (Audio)' },
+        ];
+
     await sendButtons(from, {
       body: `Link ${linkInfo.platform} terdeteksi! Mau download format apa?`,
-      buttons: [
-        { id: 'dl_mp4', title: 'MP4 (Video)' },
-        { id: 'dl_mp3', title: 'MP3 (Audio)' },
-      ],
+      buttons,
     });
     return;
   }
