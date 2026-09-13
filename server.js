@@ -34,7 +34,8 @@ async function runCommand(name, ctx) {
   const cmd = commands.get(name);
   if (!cmd) return false;
   try {
-    await cmd.run({ ...ctx, commands });
+    const result = await cmd.run({ ...ctx, commands });
+    return result !== false;
   } catch (err) {
     console.error(`Error di command "${name}":`, err);
     await sendMessage(ctx.from, 'Error pas jalanin command itu.');
@@ -181,7 +182,6 @@ app.post('/webhook', async (req, res) => {
   const linkInfo = detectLink(body);
   if (linkInfo) {
     setPending(from, linkInfo);
-
     const buttons = linkInfo.platform === 'instagram'
       ? [
           { id: 'dl_mp4', title: 'Video' },
@@ -192,7 +192,6 @@ app.post('/webhook', async (req, res) => {
           { id: 'dl_mp4', title: 'MP4 (Video)' },
           { id: 'dl_mp3', title: 'MP3 (Audio)' },
         ];
-
     await sendButtons(from, {
       body: `Link ${linkInfo.platform} terdeteksi! Mau download format apa?`,
       buttons,
@@ -200,10 +199,22 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
-  const commandName = lowerBody.split(' ')[0];
-  const args = body.split(' ').slice(1);
+  // 🎮 Cek kalau user lagi main game (tebak / kuis) — panggil command-nya
+  const tebakPending = getPending(`game:${from}`);
+  if (tebakPending) {
+    const handled = await runCommand('tebak', { ...ctx, args: body.split(' ') });
+    if (handled) return;
+  }
+
+  const kuisPending = getPending(`kuis:${from}`);
+  if (kuisPending) {
+    const handled = await runCommand('kuis', { ...ctx, args: body.split(' ') });
+    if (handled) return;
+  }
 
   const commands = require('./commands');
+  const commandName = lowerBody.split(' ')[0];
+  const args = body.split(' ').slice(1);
   const cmd = commands.get(commandName);
 
   if (cmd) {
