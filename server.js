@@ -8,7 +8,6 @@ const {
 const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
 const { clearHistory } = require('./lib/ai-memory');
 const { recordChat } = require('./lib/confess-store');
-const { sendConfess } = require('./lib/confess');
 const { downloadMedia, uploadSticker, relayUrlToMediaId, relayVideoUrlToAudioMediaId } = require('./lib/whatsapp-media');
 const { imageToSticker } = require('./lib/sticker');
 const { isDuplicate } = require('./lib/dedup');
@@ -176,31 +175,6 @@ app.post('/webhook', async (req, res) => {
   if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === '/reset') {
     clearHistory(from);
     await sendMessage(from, '✅ History obrolan dihapus. Mulai dari awal lagi ya.');
-    return;
-  }
-
-  // 💌 Command confess
-  if (lowerBody.startsWith('confess ') || lowerBody.startsWith('/confess ')) {
-    const parts = body.replace(/^\/?confess\s+/i, '').split(' ');
-    if (parts.length < 3) {
-      await sendMessage(from,
-        '📝 Format: confess <nomor> <nama> <pesan>\n\n' +
-        'Contoh:\n' +
-        'confess 628123456789 Sarah Aku suka kamu dari dulu\n\n' +
-        'Target bakal liat pengirim sebagai inisial nama (misal "S").'
-      );
-      return;
-    }
-    const targetNumber = parts[0];
-    const targetName = parts[1];
-    const confessMessage = parts.slice(2).join(' ');
-
-    const result = await sendConfess(from, targetNumber, targetName, confessMessage);
-    if (result.ok) {
-      await sendMessage(from, `✅ Confess terkirim ke ${result.target}\nPengirim tampil sebagai: *${result.initials}*`);
-    } else {
-      await sendMessage(from, `❌ ${result.error}`);
-    }
     return;
   }
 
