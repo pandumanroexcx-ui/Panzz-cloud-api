@@ -6,6 +6,7 @@ const {
   markAsRead, sendTyping,
 } = require('./lib/send-message');
 const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
+const { clearHistory } = require('./lib/ai-memory');
 const { downloadMedia, uploadSticker, relayUrlToMediaId, relayVideoUrlToAudioMediaId } = require('./lib/whatsapp-media');
 const { imageToSticker } = require('./lib/sticker');
 const { isDuplicate } = require('./lib/dedup');
@@ -91,10 +92,7 @@ app.post('/webhook', async (req, res) => {
 
   const from = message.from;
 
-  // 🔵 Tandai udah dibaca (centang biru)
   markAsRead(message.id).catch(() => {});
-
-  // 💬 Munculin typing indicator (kecuali buat download request — biar cepet)
   sendTyping(from, message.id).catch(() => {});
 
   const ctx = { sendMessage, sendImage, sendList, from, message };
@@ -108,7 +106,7 @@ app.post('/webhook', async (req, res) => {
         const mediaId = await uploadSticker(webpBuffer);
         await sendSticker(from, mediaId);
       } else {
-        const answer = await askGeminiWithImage(message.image.caption || '', buffer, mimeType);
+        const answer = await askGeminiWithImage(from, message.image.caption || '', buffer, mimeType);
         await sendMessage(from, answer);
       }
     } catch (e) {
@@ -121,7 +119,7 @@ app.post('/webhook', async (req, res) => {
   if (message.type === 'audio') {
     try {
       const { buffer, mimeType } = await downloadMedia(message.audio.id);
-      const answer = await askGeminiWithImage('Transkrip audio ini ke teks, lalu kasih ringkasan singkat.', buffer, mimeType);
+      const answer = await askGeminiWithImage(from, 'Transkrip audio ini ke teks, lalu kasih ringkasan singkat.', buffer, mimeType);
       await sendMessage(from, answer);
     } catch (e) {
       console.error('Gagal transkrip audio:', e.message);
@@ -169,6 +167,14 @@ app.post('/webhook', async (req, res) => {
 
   console.log(`Pesan masuk dari ${from}: ${text}`);
 
+  // 🔄 Command reset history
+  const lowerBody = body.toLowerCase();
+  if (lowerBody === 'reset' || lowerBody === 'clear' || lowerBody === '/reset') {
+    clearHistory(from);
+    await sendMessage(from, '✅ History obrolan dihapus. Mulai dari awal lagi ya.');
+    return;
+  }
+
   const linkInfo = detectLink(body);
   if (linkInfo) {
     setPending(from, linkInfo);
@@ -191,7 +197,7 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
-  const commandName = body.toLowerCase().split(' ')[0];
+  const commandName = lowerBody.split(' ')[0];
   const args = body.split(' ').slice(1);
 
   const commands = require('./commands');
@@ -203,7 +209,7 @@ app.post('/webhook', async (req, res) => {
   }
 
   try {
-    const answer = await askGemini(body);
+    const answer = await askGemini(from, body);
     await sendMessage(from, answer);
   } catch (e) {
     console.error('AI fallback error:', e.message);
