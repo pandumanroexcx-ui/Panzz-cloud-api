@@ -53,7 +53,10 @@ async function processDownload(from, format) {
 
     if (format === 'mp3') {
       if (!result.audioUrl) throw new Error('Ga ada versi audio buat link ini.');
-      const mediaId = await relayUrlToMediaId(result.audioUrl, 'audio/mpeg', 'audio.mp3');
+      // YouTube aslinya M4A, pake audio/mp4 biar ga di-reject WhatsApp
+      const mime = result.audioMime || 'audio/mpeg';
+      const ext = result.audioExt || 'mp3';
+      const mediaId = await relayUrlToMediaId(result.audioUrl, mime, `audio.${ext}`);
       await sendAudio(from, mediaId, true);
     } else if (format === 'image') {
       if (!result.imageUrl) throw new Error('Ga ada versi gambar buat link ini.');
