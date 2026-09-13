@@ -3,6 +3,7 @@ const { VERIFY_TOKEN } = require('./config');
 const {
   sendMessage, sendVideo, sendAudio, sendImage,
   sendButtons, sendList, sendSticker,
+  markAsRead, sendTyping,
 } = require('./lib/send-message');
 const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
 const { downloadMedia, uploadSticker, relayUrlToMediaId, relayVideoUrlToAudioMediaId } = require('./lib/whatsapp-media');
@@ -89,6 +90,13 @@ app.post('/webhook', async (req, res) => {
   if (isDuplicate(message.id)) return;
 
   const from = message.from;
+
+  // 🔵 Tandai udah dibaca (centang biru)
+  markAsRead(message.id).catch(() => {});
+
+  // 💬 Munculin typing indicator (kecuali buat download request — biar cepet)
+  sendTyping(from, message.id).catch(() => {});
+
   const ctx = { sendMessage, sendImage, sendList, from, message };
 
   if (message.type === 'image') {
