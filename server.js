@@ -14,6 +14,7 @@ const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
 const { setPending, getPending, clearPending } = require('./lib/pending-downloads');
 const { download } = require('./lib/downloader');
+const statsRecorder = require('./commands/tools/stats');
 
 const app = express();
 app.use(express.json());
@@ -30,6 +31,7 @@ app.get('/webhook', (req, res) => {
 });
 
 async function runCommand(name, ctx) {
+  try { statsRecorder.recordCommand(name); } catch(e) {}
   const commands = require('./commands');
   const cmd = commands.get(name);
   if (!cmd) return false;
@@ -95,6 +97,7 @@ app.post('/webhook', async (req, res) => {
   const from = message.from;
 
   recordChat(from);
+  statsRecorder.recordMessage();
 
   markAsRead(message.id).catch(() => {});
   sendTyping(from, message.id).catch(() => {});
