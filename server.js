@@ -5,7 +5,7 @@ const {
   sendButtons, sendList, sendSticker,
 } = require('./lib/send-message');
 const { askGemini, askGeminiWithImage } = require('./lib/ai-client');
-const { downloadMedia, uploadSticker, relayUrlToMediaId } = require('./lib/whatsapp-media');
+const { downloadMedia, uploadSticker, relayUrlToMediaId, relayVideoUrlToAudioMediaId } = require('./lib/whatsapp-media');
 const { imageToSticker } = require('./lib/sticker');
 const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
@@ -50,20 +50,26 @@ async function processDownload(from, format) {
 
   try {
     const result = await download(pendingItem.platform, pendingItem.url);
+    const extraHeaders = result.videoHeaders || {};
 
     if (format === 'mp3') {
       if (!result.audioUrl) throw new Error('Ga ada versi audio buat link ini.');
-      const mime = result.audioMime || 'audio/mpeg';
-      const ext = result.audioExt || 'mp3';
-      const mediaId = await relayUrlToMediaId(result.audioUrl, mime, `audio.${ext}`);
+      let mediaId;
+      if (result.audioFromVideo) {
+        mediaId = await relayVideoUrlToAudioMediaId(result.audioUrl, extraHeaders);
+      } else {
+        const mime = result.audioMime || 'audio/mpeg';
+        const ext = result.audioExt || 'mp3';
+        mediaId = await relayUrlToMediaId(result.audioUrl, mime, `audio.${ext}`, extraHeaders);
+      }
       await sendAudio(from, mediaId, true);
     } else if (format === 'image') {
       if (!result.imageUrl) throw new Error('Ga ada versi gambar buat link ini.');
-      const mediaId = await relayUrlToMediaId(result.imageUrl, 'image/jpeg', 'image.jpg');
+      const mediaId = await relayUrlToMediaId(result.imageUrl, 'image/jpeg', 'image.jpg', extraHeaders);
       await sendImage(from, mediaId);
     } else {
       if (!result.videoUrl) throw new Error('Ga ada versi video buat link ini.');
-      const mediaId = await relayUrlToMediaId(result.videoUrl, 'video/mp4', 'video.mp4');
+      const mediaId = await relayUrlToMediaId(result.videoUrl, 'video/mp4', 'video.mp4', extraHeaders);
       await sendVideo(from, mediaId, '', true);
     }
   } catch (e) {
