@@ -5,9 +5,15 @@ module.exports = {
   description: 'Random dadu (1-6) atau koin (head/tail)',
 
   async run({ from, sendMessage, message }) {
-    const cmd = message.text.body.trim().toLowerCase().split(' ')[0].replace(/^\//, '');
+    const textBody = message?.text?.body || '';
+    let cmdName = 'dadu';
+    if (textBody) {
+      cmdName = textBody.trim().toLowerCase().split(' ')[0].replace(/^\//, '');
+    } else if (message?.interactive?.list_reply?.id) {
+      cmdName = message.interactive.list_reply.id;
+    }
 
-    if (cmd === 'koin' || cmd === 'coin') {
+    if (cmdName === 'koin' || cmdName === 'coin') {
       const hasil = Math.random() < 0.5 ? '🪙 *KEPALA (Head)*' : '🪙 *EKOR (Tail)*';
       await sendMessage(from, hasil);
     } else {
