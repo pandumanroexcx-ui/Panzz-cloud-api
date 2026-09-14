@@ -5,3 +5,9 @@ private_key.pem
 *.pem
 private_key.pem
 *.pem
+
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal

@@ -238,5 +238,11 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+const { startReminderWorker } = require('./lib/reminder-store');
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server jalan di port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server jalan di port ${PORT}`);
+  startReminderWorker();
+  console.log('[REMINDER] Worker aktif');
+});
