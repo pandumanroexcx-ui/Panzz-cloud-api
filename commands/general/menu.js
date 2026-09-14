@@ -2,34 +2,57 @@ const fs = require('fs');
 const path = require('path');
 const { uploadImage } = require('../../lib/whatsapp-media');
 
+const CATEGORY_EMOJI = {
+  general: '📋',
+  fun: '🎮',
+  tools: '🛠️',
+  ai: '🤖',
+  downloader: '📥',
+};
+
 module.exports = {
   name: 'menu',
-  alias: ['help'],
+  alias: ['help', 'bantuan'],
   category: 'general',
   description: 'Menu interaktif dengan tombol kategori',
 
   async run({ sendImage, sendList, from, commands }) {
     const categories = [...new Set([...commands.values()].map((c) => c.category).filter(Boolean))].sort();
 
-    // 1. Baca gambar lokal dari folder assets
+    // Hitung jumlah command per kategori
+    const counts = {};
+    for (const c of commands.values()) {
+      if (!c.category) continue;
+      if (!counts[c.category]) counts[c.category] = new Set();
+      counts[c.category].add(c.name);
+    }
+
+    // Baca gambar lokal
     const imagePath = path.join(__dirname, '../../assets/b765eb46-6613-4453-b367-2aa480bdb19d.jpeg');
-    const imageBuffer = fs.readFileSync(imagePath);
+    let mediaId = null;
+    try {
+      const imageBuffer = fs.readFileSync(imagePath);
+      mediaId = await uploadImage(imageBuffer);
+      await sendImage(from, mediaId, '👋 *Welcome to PanzzBot!*\n\nKetik *.help <command>* buat liat detail command.\nContoh: *.help kuis*');
+    } catch (e) {
+      console.error('Gagal kirim gambar menu:', e.message);
+    }
 
-    // 2. Upload gambar ke WhatsApp Media
-    const mediaId = await uploadImage(imageBuffer);
-    await sendImage(from, mediaId, 'Welcome to PanzzBot!');
-
-    // 3. Kirim List Tombol Kategori
-    const rows = categories.map((cat) => ({
-      id: `cat:${cat}`,
-      title: cat.toUpperCase(),
-      description: `Lihat command kategori ${cat}`,
-    }));
+    // Kirim list kategori
+    const rows = categories.map((cat) => {
+      const emoji = CATEGORY_EMOJI[cat] || '📁';
+      const total = counts[cat]?.size || 0;
+      return {
+        id: `cat:${cat}`,
+        title: `${emoji} ${cat.toUpperCase()} (${total})`,
+        description: `Lihat ${total} command kategori ${cat}`,
+      };
+    });
 
     await sendList(from, {
-      header: 'Kategori Command',
+      header: '📚 Kategori Command',
       body: 'Tap tombol di bawah buat pilih kategori:',
-      footer: 'PanzzBot',
+      footer: 'PanzzBot v1.0',
       buttonText: 'Pilih Kategori',
       sections: [{ title: 'Kategori', rows }],
     });

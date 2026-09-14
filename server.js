@@ -14,9 +14,14 @@ const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
 const { setPending, getPending, clearPending } = require('./lib/pending-downloads');
 const { download } = require('./lib/downloader');
+const { startReminderWorker } = require('./lib/reminder-store');
+const { startRoutineWorker } = require('./lib/routine-store');
+const { checkRateLimit } = require('./lib/rate-limit');
 
 const app = express();
 app.use(express.json());
+
+const CATEGORY_EMOJI = { general: '📋', fun: '🎮', tools: '🛠️', ai: '🤖', downloader: '📥' };
 
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -37,7 +42,7 @@ async function runCommand(name, ctx) {
     await cmd.run({ ...ctx, commands });
   } catch (err) {
     console.error(`Error di command "${name}":`, err);
-    await sendMessage(ctx.from, 'Error pas jalanin command itu.');
+    await sendMessage(ctx.from, '⚠️ Command-nya lagi error, coba lagi nanti ya 🙏');
   }
   return true;
 }
@@ -76,8 +81,8 @@ async function processDownload(from, format) {
       await sendVideo(from, mediaId, '', true);
     }
   } catch (e) {
-    console.error('Download error:', e.message);
-    await sendMessage(from, `Gagal download: ${e.message}`);
+    console.error('Download error detail:', e.message);
+    await sendMessage(from, '⚠️ Gagal download. Coba lagi nanti ya 🙏');
   }
 }
 
@@ -92,6 +97,13 @@ app.post('/webhook', async (req, res) => {
   if (isDuplicate(message.id)) return;
 
   const from = message.from;
+
+  const rl = checkRateLimit(from);
+  if (!rl.allowed) {
+    console.log(`[RATE-LIMIT] ${from} spam`);
+    return;
+  }
+
   recordChat(from);
   markAsRead(message.id).catch(() => {});
   sendTyping(from, message.id).catch(() => {});
@@ -112,7 +124,7 @@ app.post('/webhook', async (req, res) => {
       }
     } catch (e) {
       console.error('Gagal proses gambar:', e.message);
-      await sendMessage(from, 'Gagal proses gambar itu, coba lagi.');
+      await sendMessage(from, '⚠️ Gagal proses gambar itu, coba lagi 🙏');
     }
     return;
   }
@@ -124,7 +136,7 @@ app.post('/webhook', async (req, res) => {
       await sendMessage(from, answer);
     } catch (e) {
       console.error('Gagal transkrip audio:', e.message);
-      await sendMessage(from, 'Gagal transkrip voice note itu, coba lagi.');
+      await sendMessage(from, '⚠️ Gagal transkrip voice note, coba lagi 🙏');
     }
     return;
   }
@@ -150,11 +162,14 @@ app.post('/webhook', async (req, res) => {
           rows.push({ id: cmd.name, title: cmd.name, description: cmd.description || '' });
         }
       }
+      const emoji = CATEGORY_EMOJI[category] || '📁';
+      const uniqueRows = rows.filter((r, i, arr) => arr.findIndex(x => x.id === r.id) === i);
+
       await sendList(from, {
-        header: category.toUpperCase(),
-        body: 'Tap command buat langsung jalanin:',
+        header: `${emoji} ${category.toUpperCase()}`,
+        body: `Ada *${uniqueRows.length}* command di kategori ini.\nTap buat langsung jalanin:`,
         buttonText: 'Lihat Command',
-        sections: [{ title: category.toUpperCase(), rows }],
+        sections: [{ title: `${emoji} ${category.toUpperCase()}`, rows: uniqueRows }],
       });
     } else {
       await runCommand(id, { ...ctx, args: [] });
@@ -186,13 +201,6 @@ app.post('/webhook', async (req, res) => {
         { id: 'dl_mp4', title: 'Video' },
         { id: 'dl_image', title: 'Gambar' },
         { id: 'dl_mp3', title: 'Lagu' },
-      ];
-    } else if (linkInfo.platform === 'spotify') {
-      buttons = [{ id: 'dl_mp3', title: 'Download Lagu' }];
-    } else if (linkInfo.platform === 'twitter') {
-      buttons = [
-        { id: 'dl_mp4', title: 'Video' },
-        { id: 'dl_image', title: 'Gambar' },
       ];
     } else {
       buttons = [
@@ -235,14 +243,14 @@ app.post('/webhook', async (req, res) => {
     await sendMessage(from, answer);
   } catch (e) {
     console.error('AI fallback error:', e.message);
+    await sendMessage(from, '⚠️ AI lagi sibuk, coba lagi nanti 🙏');
   }
 });
-
-const { startReminderWorker } = require('./lib/reminder-store');
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server jalan di port ${PORT}`);
   startReminderWorker();
-  console.log('[REMINDER] Worker aktif');
+  startRoutineWorker();
+  console.log('[WORKER] Reminder + Routine aktif');
 });
