@@ -98,6 +98,7 @@ app.post('/webhook', async (req, res) => {
 
   recordChat(from);
   statsRecorder.recordMessage();
+  statsRecorder.recordMessage();
 
   markAsRead(message.id).catch(() => {});
   sendTyping(from, message.id).catch(() => {});
