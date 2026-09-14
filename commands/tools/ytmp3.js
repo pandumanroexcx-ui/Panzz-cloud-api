@@ -3,11 +3,14 @@ const { relayUrlToMediaId } = require('../../lib/whatsapp-media');
 const { sendAudio } = require('../../lib/send-message');
 
 // Search YouTube via Invidious (gratis, no API key)
+// Daftar instance lebih banyak buat fallback
 async function searchYouTube(query) {
   const instances = [
-    'https://invidious.nerdvpn.de',
     'https://inv.nadeko.net',
-    'https://invidious.f5.si',
+    'https://invidious.nerdvpn.de',
+    'https://yewtu.be',
+    'https://vid.puffyan.us',
+    'https://invidious.projectsegfau.lt',
   ];
   for (const base of instances) {
     try {
@@ -17,7 +20,10 @@ async function searchYouTube(query) {
       });
       if (!res.ok) continue;
       const data = await res.json();
-      if (Array.isArray(data) && data[0]?.videoId) return data[0];
+      if (Array.isArray(data) && data[0]?.videoId) {
+        console.log(`[YTMP3] Search OK via ${base}`);
+        return data[0];
+      }
     } catch (e) {
       console.log(`[YTMP3] ${base} gagal:`, e.message);
     }
