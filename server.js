@@ -14,7 +14,6 @@ const { isDuplicate } = require('./lib/dedup');
 const { detectLink } = require('./lib/link-detect');
 const { setPending, getPending, clearPending } = require('./lib/pending-downloads');
 const { download } = require('./lib/downloader');
-const statsRecorder = require('./commands/tools/stats');
 
 const app = express();
 app.use(express.json());
@@ -31,13 +30,11 @@ app.get('/webhook', (req, res) => {
 });
 
 async function runCommand(name, ctx) {
-  try { statsRecorder.recordCommand(name); } catch(e) {}
   const commands = require('./commands');
   const cmd = commands.get(name);
   if (!cmd) return false;
   try {
-    const result = await cmd.run({ ...ctx, commands });
-    return result !== false;
+    await cmd.run({ ...ctx, commands });
   } catch (err) {
     console.error(`Error di command "${name}":`, err);
     await sendMessage(ctx.from, 'Error pas jalanin command itu.');
@@ -95,11 +92,7 @@ app.post('/webhook', async (req, res) => {
   if (isDuplicate(message.id)) return;
 
   const from = message.from;
-
   recordChat(from);
-  statsRecorder.recordMessage();
-  statsRecorder.recordMessage();
-
   markAsRead(message.id).catch(() => {});
   sendTyping(from, message.id).catch(() => {});
 
@@ -186,16 +179,28 @@ app.post('/webhook', async (req, res) => {
   const linkInfo = detectLink(body);
   if (linkInfo) {
     setPending(from, linkInfo);
-    const buttons = linkInfo.platform === 'instagram'
-      ? [
-          { id: 'dl_mp4', title: 'Video' },
-          { id: 'dl_image', title: 'Gambar' },
-          { id: 'dl_mp3', title: 'Lagu' },
-        ]
-      : [
-          { id: 'dl_mp4', title: 'MP4 (Video)' },
-          { id: 'dl_mp3', title: 'MP3 (Audio)' },
-        ];
+
+    let buttons;
+    if (linkInfo.platform === 'instagram') {
+      buttons = [
+        { id: 'dl_mp4', title: 'Video' },
+        { id: 'dl_image', title: 'Gambar' },
+        { id: 'dl_mp3', title: 'Lagu' },
+      ];
+    } else if (linkInfo.platform === 'spotify') {
+      buttons = [{ id: 'dl_mp3', title: 'Download Lagu' }];
+    } else if (linkInfo.platform === 'twitter') {
+      buttons = [
+        { id: 'dl_mp4', title: 'Video' },
+        { id: 'dl_image', title: 'Gambar' },
+      ];
+    } else {
+      buttons = [
+        { id: 'dl_mp4', title: 'MP4 (Video)' },
+        { id: 'dl_mp3', title: 'MP3 (Audio)' },
+      ];
+    }
+
     await sendButtons(from, {
       body: `Link ${linkInfo.platform} terdeteksi! Mau download format apa?`,
       buttons,
@@ -203,7 +208,6 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
-  // 🎮 Cek kalau user lagi main game (tebak / kuis) — panggil command-nya
   const tebakPending = getPending(`game:${from}`);
   if (tebakPending) {
     const handled = await runCommand('tebak', { ...ctx, args: body.split(' ') });
