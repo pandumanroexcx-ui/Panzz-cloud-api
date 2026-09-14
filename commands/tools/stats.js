@@ -1,5 +1,4 @@
 const { getAllActive } = require('../../lib/confess-store');
-const commands = require('../index');
 
 const startTime = Date.now();
 const stats = {
@@ -34,10 +33,21 @@ module.exports = {
   recordCommand,
 
   async run({ from, sendMessage }) {
-    const totalCmd = new Set([...commands.values()].map(c => c.name)).size;
-    const activeUsers = getAllActive().length;
+    let totalCmd = 0;
+    try {
+      const commands = require('../index');
+      if (commands && typeof commands.values === 'function') {
+        totalCmd = new Set([...commands.values()].map(c => c && c.name).filter(Boolean)).size;
+      }
+    } catch (e) {
+      console.log('[STATS] gagal baca commands:', e.message);
+    }
 
-    // Top 5 command
+    let activeUsers = 0;
+    try {
+      activeUsers = getAllActive().length;
+    } catch (e) {}
+
     const sorted = [...stats.commandsUsed.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     const topList = sorted.length
       ? sorted.map(([n, c], i) => `${i + 1}. .${n} — ${c}x`).join('\n')
