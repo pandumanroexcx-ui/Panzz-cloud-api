@@ -1,27 +1,5 @@
-const { GEMINI_API_KEY } = require('../../config');
-
-async function generateWYR() {
-  const prompt = 'Buat 1 pertanyaan "Would You Rather" (Pilih mana) dalam bahasa Indonesia yang absurd & lucu. Format:
-🤔 *WOULD YOU RATHER*
-
-Pilih salah satu:
-
-*A.* [opsi 1]
-*B.* [opsi 2]
-
-Jangan pakai penjelasan tambahan.';
-  const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    }
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.candidates?.[0]?.content?.parts?.[0]?.text;
-}
+const { GROQ_KEY_FUN, GROQ_API_KEY } = require('../../config');
+const { callGroq } = require('../../lib/groq');
 
 module.exports = {
   name: 'wyr',
@@ -32,7 +10,11 @@ module.exports = {
   async run({ from, sendMessage }) {
     await sendMessage(from, '🤔 Lagi mikir...');
     try {
-      const hasil = await generateWYR();
+      const apiKey = GROQ_KEY_FUN || GROQ_API_KEY;
+      const hasil = await callGroq({
+        apiKey,
+        prompt: 'Buat 1 pertanyaan "Would You Rather" dalam bahasa Indonesia yang absurd & lucu. Format:\n🤔 *WOULD YOU RATHER*\n\nPilih salah satu:\n\n*A.* [opsi 1]\n*B.* [opsi 2]',
+      });
       await sendMessage(from, hasil);
     } catch (e) {
       console.error('WYR error:', e.message);

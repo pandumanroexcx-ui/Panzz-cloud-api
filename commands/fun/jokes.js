@@ -1,19 +1,5 @@
-const { GEMINI_API_KEY } = require('../../config');
-
-async function generateJoke() {
-  const prompt = 'Buat 1 jokes receh bahasa Indonesia. Singkat (max 2 kalimat). Boleh garing, yang penting lucu. Jangan pakai pembuka "Kenapa" mulu.';
-  const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    }
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.candidates?.[0]?.content?.parts?.[0]?.text;
-}
+const { GROQ_KEY_FUN, GROQ_API_KEY } = require('../../config');
+const { callGroq } = require('../../lib/groq');
 
 module.exports = {
   name: 'jokes',
@@ -24,7 +10,11 @@ module.exports = {
   async run({ from, sendMessage }) {
     await sendMessage(from, '😂 Lagi nyari jokes...');
     try {
-      const joke = await generateJoke();
+      const apiKey = GROQ_KEY_FUN || GROQ_API_KEY;
+      const joke = await callGroq({
+        apiKey,
+        prompt: 'Buat 1 jokes receh bahasa Indonesia. Singkat (max 2 kalimat). Boleh garing yang penting lucu.',
+      });
       await sendMessage(from, `😂 *JOKES*\n\n${joke}`);
     } catch (e) {
       console.error('Jokes error:', e.message);
