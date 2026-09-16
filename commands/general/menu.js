@@ -28,7 +28,7 @@ module.exports = {
     }
 
     // Baca gambar lokal
-    const imagePath = path.join(__dirname, '../../assets/b765eb46-6613-4453-b367-2aa480bdb19d.jpeg');
+    const imagePath = path.join(__dirname, '../../assets/fotomenu.jpeg');
     let mediaId = null;
     try {
       const imageBuffer = fs.readFileSync(imagePath);
