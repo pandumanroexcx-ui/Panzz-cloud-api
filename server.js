@@ -151,8 +151,12 @@ app.post('/webhook', async (req, res) => {
 
   if (message.type === 'interactive' && message.interactive?.type === 'list_reply') {
     const id = message.interactive.list_reply.id;
+
     if (id.startsWith('cat:')) {
-      const category = id.slice(4);
+      const parts = id.split(':');
+      const category = parts[1];
+      const page = parseInt(parts[2] || '0', 10);
+
       const commands = require('./commands');
       const rows = [];
       const seen = new Set();
@@ -162,14 +166,28 @@ app.post('/webhook', async (req, res) => {
           rows.push({ id: cmd.name, title: cmd.name, description: cmd.description || '' });
         }
       }
+
+      const PER_PAGE = 10;
+      const totalPages = Math.ceil(rows.length / PER_PAGE);
+      const start = page * PER_PAGE;
+      const pageRows = rows.slice(start, start + PER_PAGE);
+
+      if (page < totalPages - 1) {
+        pageRows.push({
+          id: `cat:${category}:${page + 1}`,
+          title: `➡️ Halaman ${page + 2}`,
+          description: `Lihat ${Math.min(PER_PAGE, rows.length - start - PER_PAGE)} command lagi`,
+        });
+      }
+
       const emoji = CATEGORY_EMOJI[category] || '📁';
-      const uniqueRows = rows.filter((r, i, arr) => arr.findIndex(x => x.id === r.id) === i);
+      const pageInfo = totalPages > 1 ? ` (Hal ${page + 1}/${totalPages})` : '';
 
       await sendList(from, {
-        header: `${emoji} ${category.toUpperCase()}`,
-        body: `Ada *${uniqueRows.length}* command di kategori ini.\nTap buat langsung jalanin:`,
+        header: `${emoji} ${category.toUpperCase()}${pageInfo}`,
+        body: `Ada *${rows.length}* command di kategori ini.\nTap buat langsung jalanin:`,
         buttonText: 'Lihat Command',
-        sections: [{ title: `${emoji} ${category.toUpperCase()}`, rows: uniqueRows }],
+        sections: [{ title: `${emoji} ${category.toUpperCase()}`, rows: pageRows }],
       });
     } else {
       await runCommand(id, { ...ctx, args: [] });
