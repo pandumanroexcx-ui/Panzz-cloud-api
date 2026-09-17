@@ -167,16 +167,19 @@ app.post('/webhook', async (req, res) => {
         }
       }
 
+      // WhatsApp limit: max 10 total (command + tombol Next)
+      // Kalau ada Next, tampilin 9 command. Kalau halaman terakhir, 10 command.
       const PER_PAGE = 10;
-      const totalPages = Math.ceil(rows.length / PER_PAGE);
+      const hasNext = (page + 1) * PER_PAGE < rows.length;
+      const showCount = hasNext ? PER_PAGE - 1 : PER_PAGE;
       const start = page * PER_PAGE;
-      const pageRows = rows.slice(start, start + PER_PAGE);
+      const pageRows = rows.slice(start, start + showCount);
 
-      if (page < totalPages - 1) {
+      if (hasNext) {
         pageRows.push({
           id: `cat:${category}:${page + 1}`,
           title: `➡️ Halaman ${page + 2}`,
-          description: `Lihat ${Math.min(PER_PAGE, rows.length - start - PER_PAGE)} command lagi`,
+          description: `Lihat command selanjutnya`,
         });
       }
 
