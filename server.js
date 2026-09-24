@@ -21,6 +21,9 @@ const { checkRateLimit } = require('./lib/rate-limit');
 const app = express();
 app.use(express.json());
 
+const path = require("path");
+app.use(express.static(path.join(__dirname, "public")));
+
 const CATEGORY_EMOJI = { general: '📋', fun: '🎮', tools: '🛠️', ai: '🤖', downloader: '📥' };
 
 app.get('/webhook', (req, res) => {
