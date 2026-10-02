@@ -15,6 +15,9 @@ const { detectLink } = require('./lib/link-detect');
 const { setPending, getPending, clearPending } = require('./lib/pending-downloads');
 const { download } = require('./lib/downloader');
 const { startReminderWorker } = require('./lib/reminder-store');
+const { track } = require('./lib/activity-tracker');
+const { startGreetingScheduler } = require('./lib/greeting-scheduler');
+const { startCheckinScheduler } = require('./lib/checkin-scheduler');
 const { startRoutineWorker } = require('./lib/routine-store');
 const { checkRateLimit } = require('./lib/rate-limit');
 
@@ -108,6 +111,7 @@ app.post('/webhook', async (req, res) => {
   }
 
   recordChat(from);
+  track(from);
   markAsRead(message.id).catch(() => {});
   sendTyping(from, message.id).catch(() => {});
 
@@ -276,4 +280,7 @@ app.listen(PORT, () => {
   startReminderWorker();
   startRoutineWorker();
   console.log('[WORKER] Reminder + Routine aktif');
+  startGreetingScheduler();
+  startCheckinScheduler();
+  console.log('[WORKER] Greeting + Checkin aktif');
 });
