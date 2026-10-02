@@ -17,7 +17,7 @@ const { download } = require('./lib/downloader');
 const { startReminderWorker } = require('./lib/reminder-store');
 const { track } = require('./lib/activity-tracker');
 const { startGreetingScheduler } = require('./lib/greeting-scheduler');
-const { startCheckinScheduler } = require('./lib/checkin-scheduler');
+
 const { startRoutineWorker } = require('./lib/routine-store');
 const { checkRateLimit } = require('./lib/rate-limit');
 
@@ -281,6 +281,6 @@ app.listen(PORT, () => {
   startRoutineWorker();
   console.log('[WORKER] Reminder + Routine aktif');
   startGreetingScheduler();
-  startCheckinScheduler();
+  
   console.log('[WORKER] Greeting + Checkin aktif');
 });
